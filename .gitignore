@@ -1,0 +1,13 @@
+Ignore sensitive crypto material
+*.key
+*.pfx
+*.csr
+
+Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+Ignore virtual environments
+venv/
+.env/
