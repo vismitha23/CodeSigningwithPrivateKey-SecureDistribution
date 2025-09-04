@@ -38,3 +38,15 @@ Not uploaded for security reasons:
 Setup Instructions
 1. Install Dependencies
 pip install -r requirements.txt
+2. Run Local HTTPS Server
+python server.py
+Server runs on https://127.0.0.1:5000.
+Visit /get_token?filename=hello.exe to generate a short-lived download link.
+
+Verification
+
+Right-click hello.exe → Properties → Digital Signatures.
+
+You should see Valid signature with timestamp.
+
+Compare with MyApp.exe (unsigned → warning).
