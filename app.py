@@ -1,104 +1,106 @@
 import os
-import hashlib
 import subprocess
-from flask import Flask, render_template, request, redirect, url_for, send_file, session
-from datetime import datetime
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+from flask import Flask, render_template, request, redirect, url_for, session, send_file, flash
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-
-# Secret key for sessions (required!)
-app.secret_key = "supersecretkey123"  
-
+app.secret_key = "supersecretkey"
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 
-def verify_certificate(file_path):
-    """
-    Verifies the digital signature of a Windows executable using signtool.
-    """
+def run_signtool(file_path):
     try:
         result = subprocess.run(
-            ["signtool", "verify", "/pa", file_path],
-            capture_output=True, text=True
+            ["signtool", "verify", "/pa", "/all", "/v", file_path],
+            capture_output=True,
+            text=True,
+            shell=True
         )
+        output = result.stdout
 
         cert_info = {
             "valid": False,
-            "subject": None,
-            "issuer": None,
-            "valid_from": None,
-            "valid_to": None,
-            "fingerprint": None
+            "subject": "N/A",
+            "issuer": "N/A",
+            "valid_from": "N/A",
+            "valid_to": "N/A",
+            "fingerprint": "N/A",
         }
 
-        if "Successfully verified" in result.stdout:
+        # Set validity
+        if "Successfully verified" in output:
             cert_info["valid"] = True
 
-            # Dummy certificate info (replace with real parsing if needed)
-            cert_info["subject"] = "Demo Organization"
-            cert_info["issuer"] = "Trusted CA"
-            cert_info["valid_from"] = "2023-01-01"
-            cert_info["valid_to"] = "2026-01-01"
+        # Extract SHA256 file hash
+        if "Hash of file (sha256):" in output:
+            cert_info["fingerprint"] = output.split("Hash of file (sha256):")[1].split("\n")[0].strip()
 
-            # Compute SHA256 fingerprint
-            with open(file_path, "rb") as f:
-                cert_info["fingerprint"] = hashlib.sha256(f.read()).hexdigest()
+        # Extract Issued to
+        if "Issued to:" in output:
+            cert_info["subject"] = output.split("Issued to:")[1].split("\n")[0].strip()
+
+        # Extract Issued by
+        if "Issued by:" in output:
+            cert_info["issuer"] = output.split("Issued by:")[1].split("\n")[0].strip()
+
+        # Extract Valid To
+        if "Expires:" in output:
+            cert_info["valid_to"] = output.split("Expires:")[1].split("\n")[0].strip()
+
+        # Extract Timestamp (as Valid From)
+        if "The signature is timestamped:" in output:
+            cert_info["valid_from"] = output.split("The signature is timestamped:")[1].split("\n")[0].strip()
 
         return cert_info
+
     except Exception as e:
-        print("Verification error:", e)
-        return None
+        return {"error": str(e)}
 
 
 @app.route("/", methods=["GET", "POST"])
 def index():
     cert_info = None
-
     if request.method == "POST":
         if "file" not in request.files:
+            flash("No file uploaded!")
             return redirect(request.url)
 
         file = request.files["file"]
         if file.filename == "":
+            flash("No file selected!")
             return redirect(request.url)
 
         if file:
-            filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
-            file.save(filepath)
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+            file.save(file_path)
 
-            cert_info = verify_certificate(filepath)
-
-            if cert_info:
-                # ✅ Store in session for download_report
-                session["cert_info"] = cert_info
+            cert_info = run_signtool(file_path)
+            session["cert_info"] = cert_info
 
     return render_template("index.html", cert_info=cert_info)
 
 
 @app.route("/download_report")
 def download_report():
+    from reportlab.lib.pagesizes import letter
+    from reportlab.pdfgen import canvas
+
     cert_info = session.get("cert_info")
     if not cert_info:
+        flash("No report to download. Please verify a file first.")
         return redirect(url_for("index"))
 
-    report_path = os.path.join(app.config["UPLOAD_FOLDER"], "verification_report.pdf")
-
-    # Generate PDF
+    report_path = os.path.join(UPLOAD_FOLDER, "certificate_report.pdf")
     c = canvas.Canvas(report_path, pagesize=letter)
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(200, 750, "Certificate Verification Report")
-
     c.setFont("Helvetica", 12)
-    y = 700
+    c.drawString(100, 750, "Certificate Verification Report")
+    y = 720
     for key, value in cert_info.items():
-        c.drawString(100, y, f"{key.capitalize()}: {value if value else 'N/A'}")
-        y -= 25
-
-    c.drawString(100, y - 20, f"Generated On: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        c.drawString(100, y, f"{key}: {value}")
+        y -= 20
     c.save()
 
     return send_file(report_path, as_attachment=True)
@@ -108,5 +110,6 @@ if __name__ == "__main__":
     app.run(debug=True)
 
    
+
 
 
