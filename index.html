@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Code Signing Certificate Verifier</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container mt-5">
+    <h2 class="text-center mb-4">Code Signing Certificate Verifier</h2>
+
+    <!-- Upload Form -->
+    <div class="card shadow p-4 mb-4">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="file" class="form-label">Upload Executable (.exe)</label>
+                <input type="file" class="form-control" id="file" name="file" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Upload & Verify</button>
+        </form>
+    </div>
+
+    <!-- Certificate Results -->
+    {% if cert_info %}
+    <div class="card shadow p-4">
+        <h4 class="mb-3">Verification Result</h4>
+
+        <table class="table table-bordered">
+            <tr>
+                <th>Status</th>
+                <td>
+                    {% if cert_info.valid %}
+                        <span class="badge bg-success">Valid ✅</span>
+                    {% else %}
+                        <span class="badge bg-danger">Invalid ❌</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th>Issued To (Subject)</th>
+                <td>{{ cert_info.subject or "N/A" }}</td>
+            </tr>
+            <tr>
+                <th>Issued By (Issuer)</th>
+                <td>{{ cert_info.issuer or "N/A" }}</td>
+            </tr>
+            <tr>
+                <th>Valid From</th>
+                <td>{{ cert_info.valid_from or "N/A" }}</td>
+            </tr>
+            <tr>
+                <th>Valid To</th>
+                <td>{{ cert_info.valid_to or "N/A" }}</td>
+            </tr>
+            <tr>
+                <th>SHA256 Fingerprint</th>
+                <td><code>{{ cert_info.fingerprint or "N/A" }}</code></td>
+            </tr>
+        </table>
+
+        <!-- 📄 Download Report Button -->
+        <div class="mt-3 text-end">
+            <a href="{{ url_for('download_report') }}" class="btn btn-outline-secondary">
+                📄 Download Report (PDF)
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+</body>
+</html>
+
+
